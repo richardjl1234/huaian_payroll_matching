@@ -7,7 +7,7 @@ from config import DATABASE_PATH
 
 def query_quota_table():
     """
-    Query the quota table from the database and return results as JSON objects
+    Query the quota table from the database and return results as list of dictionaries
     """
     try:
         # Connect to the SQLite database
@@ -23,15 +23,15 @@ def query_quota_table():
         # Fetch all rows
         rows = cursor.fetchall()
         
-        # Convert rows to list of dictionaries (JSON objects)
-        json_list = []
+        # Convert rows to list of dictionaries
+        dict_list = []
         for row in rows:
-            json_list.append(dict(row))
+            dict_list.append(dict(row))
         
         # Close the connection
         conn.close()
         
-        return json_list
+        return dict_list
         
     except sqlite3.Error as e:
         print(f"Database error: {e}")
