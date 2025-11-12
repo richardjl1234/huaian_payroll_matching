@@ -13,19 +13,19 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DATABASE_PATH
 
 
-def payroll_records_gen(filename):
+def payroll_records_gen(file_name_prefix):
     """
     Generator function that yields payroll records one at a time.
     
     Args:
-        filename (str): The filename to use in the SQL query template
+        file_name_prefix (str): The file name prefix to use in the SQL query template
         
     Yields:
         dict: A payroll record from the database
     """
     # SQL template as specified
-    sql_template = "select * from payroll_details where 文件名 = '{}';"
-    sql_query = sql_template.format(filename)
+    sql_template = "select * from payroll_details where 文件名 like '{}%';"
+    sql_query = sql_template.format(file_name_prefix)
     
     print(f"Executing: {sql_query}")
     

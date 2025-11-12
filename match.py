@@ -25,12 +25,17 @@ def filter_quota_data(quota_data, payroll_record, file_name):
     Returns:
         tuple: (filter1_count, filter2_count, filtered_data)
     """
-    # Calculate effected_from
-    effected_from = calculate_effected_from(file_name)
+    # Get sheet name from payroll record
+    sheet_name = payroll_record['sheet名']
+    
+    # Calculate effected_from with both file_name and sheet_name
+    effected_from = calculate_effected_from(file_name, sheet_name)
+    # print the value of effected_from
+    print(f"the value of {effected_from =}")
+    
     
     # Filter 1: quota_data[类别1] in category_mapping[sheet名][effected_from]
     # and quota_data[effected_from] == effected_from
-    sheet_name = payroll_record['sheet名']
     
     if sheet_name in category_mapping and effected_from in category_mapping[sheet_name]:
         valid_categories = category_mapping[sheet_name][effected_from]
@@ -85,18 +90,32 @@ def main():
     print("工资记录与定额数据匹配程序")
     print("=" * 60)
     
+    # Check command line arguments
+    if len(sys.argv) != 2:
+        print("用法: python match.py <文件名前缀>")
+        print("例如: python match.py 202005")
+        print("将处理所有文件名以 '202005' 开头的记录")
+        return
+    
+    file_prefix = sys.argv[1]
+    print(f"正在处理文件名前缀为 '{file_prefix}' 的记录")
+    print()
+    
     # Step a: Call query_quota_table and store as quota_data
     print("正在查询定额数据...")
     quota_data = query_quota_table()
     print(f"获取到 {len(quota_data)} 条定额记录")
     print()
     
-    # Step b: Set filename and call payroll_generator
-    file_name = '202006.xls'
-    print(f"正在处理文件: {file_name}")
+    # Step b: Call payroll_generator with the file prefix
+    # Now payroll_records_gen expects a file name prefix
+    print(f"正在处理文件前缀: {file_prefix}")
     print()
     
-    generator = payroll_records_gen(file_name)
+    # Reconstruct file name for display and filter purposes
+    file_name = f"{file_prefix}.xls"
+    
+    generator = payroll_records_gen(file_prefix)
     
     try:
         # Process records one by one
@@ -111,6 +130,14 @@ def main():
             filter1_count, filter2_count, filtered_data = filter_quota_data(
                 quota_data, payroll_record, file_name
             )
+            
+            # Display detailed filter information
+            print(f"过滤条件详情:")
+            print(f"  文件名: {file_name}")
+            print(f"  工作表名: {payroll_record['sheet名']}")
+            print(f"  生效日期: {calculate_effected_from(file_name, payroll_record['sheet名'])}")
+            print(f"  定额值: {payroll_record['定额']}")
+            print()
             
             print(f"过滤结果:")
             print(f"  过滤条件1匹配的记录数: {filter1_count}")
@@ -129,9 +156,32 @@ def main():
                 if choice == '1':
                     if filtered_data:
                         print(f"\n显示 {len(filtered_data)} 条匹配的定额记录:")
-                        print("-" * 40)
-                        for record in filtered_data:
-                            print(format_quota_record(record))
+                        print("-" * 80)
+                        
+                        # Create a DataFrame for better formatting
+                        import pandas as pd
+                        
+                        # Prepare data for DataFrame
+                        records_data = []
+                        for i, record in enumerate(filtered_data, 1):
+                            record_data = {
+                                '记录': f'记录{i}',
+                                '类别1': record.get('类别1', 'N/A'),
+                                '类别2': record.get('类别2', 'N/A'),
+                                '加工工序': record.get('加工工序', 'N/A'),
+                                '型号': record.get('型号', 'N/A'),
+                                '定额': record.get('定额', 'N/A'),
+                                'effected_from': record.get('effected_from', 'N/A')
+                            }
+                            records_data.append(record_data)
+                        
+                        # Create DataFrame and transpose it
+                        df = pd.DataFrame(records_data)
+                        df_transposed = df.set_index('记录')
+                        
+                        # Display the transposed DataFrame
+                        print(df_transposed.to_string())
+                        print("-" * 80)
                     else:
                         print("没有匹配的定额记录")
                     print()
