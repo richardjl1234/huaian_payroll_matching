@@ -61,26 +61,6 @@ def filter_quota_data(quota_data, payroll_record, file_name):
     return filter1_count, filter2_count, filter2_data
 
 
-def format_quota_record(record):
-    """
-    Format a quota record for display
-    
-    Args:
-        record (dict): Quota record to format
-        
-    Returns:
-        str: Formatted record string
-    """
-    return f"""
-类别1: {record.get('类别1', 'N/A')}
-类别2: {record.get('类别2', 'N/A')}
-加工工序: {record.get('加工工序', 'N/A')}
-型号: {record.get('型号', 'N/A')}
-定额: {record.get('定额', 'N/A')}
-effected_from: {record.get('effected_from', 'N/A')}
-{'='*40}
-"""
-
 
 def main():
     """
@@ -91,14 +71,21 @@ def main():
     print("=" * 60)
     
     # Check command line arguments
-    if len(sys.argv) != 2:
-        print("用法: python match.py <文件名前缀>")
+    if len(sys.argv) < 2 or len(sys.argv) > 3:
+        print("用法: python match.py <文件名前缀> [工作表名]")
         print("例如: python match.py 202005")
-        print("将处理所有文件名以 '202005' 开头的记录")
+        print("      python match.py 202005 精加工")
+        print("当只提供文件名前缀时，处理所有相关记录")
+        print("当提供工作表名时，只处理指定工作表的记录")
         return
     
     file_prefix = sys.argv[1]
-    print(f"正在处理文件名前缀为 '{file_prefix}' 的记录")
+    sheet_name = sys.argv[2] if len(sys.argv) == 3 else None
+    
+    if sheet_name:
+        print(f"正在处理文件名前缀为 '{file_prefix}'，工作表名为 '{sheet_name}' 的记录")
+    else:
+        print(f"正在处理文件名前缀为 '{file_prefix}' 的所有记录")
     print()
     
     # Step a: Call query_quota_table and store as quota_data
@@ -107,15 +94,16 @@ def main():
     print(f"获取到 {len(quota_data)} 条定额记录")
     print()
     
-    # Step b: Call payroll_generator with the file prefix
-    # Now payroll_records_gen expects a file name prefix
+    # Step b: Call payroll_generator with the file prefix and optional sheet name
     print(f"正在处理文件前缀: {file_prefix}")
+    if sheet_name:
+        print(f"工作表名: {sheet_name}")
     print()
     
     # Reconstruct file name for display and filter purposes
     file_name = f"{file_prefix}.xls"
     
-    generator = payroll_records_gen(file_prefix)
+    generator = payroll_records_gen(file_prefix, sheet_name)
     
     try:
         # Process records one by one
