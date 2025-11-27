@@ -61,6 +61,35 @@ def filter_quota_data(quota_data, payroll_record, file_name):
     return filter1_count, filter2_count, filter2_data
 
 
+class NODECISION(Exception):
+    """Exception raised when no single decision can be made"""
+    pass
+
+
+def final_decision(payroll_record, filter2_data):
+    """
+    Make final decision based on filtered quota data
+    
+    Args:
+        payroll_record (dict): Payroll record
+        filter2_data (list): Filtered quota data after both filters
+        
+    Returns:
+        str: The code from the single matching quota record
+        
+    Raises:
+        NODECISION: When there is not exactly one matching record
+    """
+    if len(filter2_data) == 1:
+        return filter2_data[0]['代码']
+    else:
+        raise NODECISION(
+            f"Cannot make decision - found {len(filter2_data)} matching records\n"
+            f"Payroll Record: {payroll_record}\n"
+            f"Filtered Data: {filter2_data}"
+        )
+
+
 
 def main():
     """

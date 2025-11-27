@@ -13,24 +13,32 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DATABASE_PATH
 
 
-def payroll_records_gen(file_name_prefix, sheet_name=None):
+def payroll_records_gen(file_name_prefix=None, sheet_name=None):
     """
     Generator function that yields payroll records one at a time.
     
     Args:
-        file_name_prefix (str): The file name prefix to use in the SQL query template
+        file_name_prefix (str, optional): The file name prefix to use in the SQL query template.
+                                         If None, returns all records from payroll_details.
         sheet_name (str, optional): The sheet name to filter by. If None, returns all records.
         
     Yields:
         dict: A payroll record from the database
     """
     # Build SQL query based on parameters
-    if sheet_name:
-        sql_template = "select * from payroll_details where 文件名 like '{}%' and sheet名 = '{}';"
-        sql_query = sql_template.format(file_name_prefix, sheet_name)
+    if file_name_prefix:
+        if sheet_name:
+            sql_template = "select * from payroll_details where 文件名 like '{}%' and sheet名 = '{}';"
+            sql_query = sql_template.format(file_name_prefix, sheet_name)
+        else:
+            sql_template = "select * from payroll_details where 文件名 like '{}%';"
+            sql_query = sql_template.format(file_name_prefix)
     else:
-        sql_template = "select * from payroll_details where 文件名 like '{}%';"
-        sql_query = sql_template.format(file_name_prefix)
+        if sheet_name:
+            sql_template = "select * from payroll_details where sheet名 = '{}';"
+            sql_query = sql_template.format(sheet_name)
+        else:
+            sql_query = "select * from payroll_details;"
     
     print(f"Executing: {sql_query}")
     

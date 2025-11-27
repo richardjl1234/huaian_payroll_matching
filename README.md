@@ -47,6 +47,29 @@
 - ✅ 改进了定额记录显示格式（使用DataFrame表格）
 - ✅ 重构了 `payroll_records_gen` 函数参数
 - ✅ 创建了全面的测试程序
+- ✅ 添加了批量匹配程序 `batch_matching.py`
+- ✅ 实现了 `final_decision` 函数用于自动决策
+- ✅ 更新了 `payroll_records_gen` 支持可选文件名参数
+- ✅ 清理了未使用的 `format_quota_record` 函数
+
+### 新增模块
+
+6. **batch_matching.py** - 批量匹配程序
+   - 非交互式批量处理工资记录
+   - 自动跳过定额为0的记录
+   - 调用 `final_decision` 函数进行自动决策
+   - 提供处理进度跟踪和统计摘要
+   - 目前限制处理前100条记录（临时限制）
+
+### 新增功能
+
+- **自动决策机制**: `final_decision` 函数根据过滤结果自动返回匹配代码
+- **批量处理模式**: 支持一次性处理所有工资记录，无需用户交互
+- **灵活查询**: `payroll_records_gen` 现在支持查询所有记录或按条件过滤
+- **错误处理**: 新增 `NODECISION` 异常类处理决策失败情况
+
+### TODO
+- [ ] 移除 `batch_matching.py` 中的100条记录限制，支持处理所有记录
 
 ### 智能生效日期计算
 `calculate_effected_from` 函数现在能够：
