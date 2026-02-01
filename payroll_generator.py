@@ -55,6 +55,10 @@ def payroll_records_gen(file_name_prefix=None, sheet_name=None):
         for row in cursor:
             # Convert sqlite3.Row to dictionary
             record = dict(row)
+            # Replace "None" string values with empty strings
+            for key, value in record.items():
+                if value == "None" or value is None:
+                    record[key] = ""
             yield record
             
     except sqlite3.Error as e:

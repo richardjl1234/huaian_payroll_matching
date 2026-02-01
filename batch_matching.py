@@ -19,6 +19,28 @@ from model_mapper import load_model_mapping, model_mapper
 from config import calculate_effected_from
 
 
+# Excel column widths configuration (multiplied by 1.5 and rounded up)
+COLUMN_WIDTHS = {
+    '工作表名': 8,      # 5 * 1.5 = 7.5 → 8
+    '职员全名': 8,      # 5 * 1.5 = 7.5 → 8
+    '定额': 8,          # 5 * 1.5 = 7.5 → 8
+    '计件数量': 6,      # 4 * 1.5 = 6 → 6
+    '系数': 3,          # 2 * 1.5 = 3 → 3
+    '型号': 8,          # 5 * 1.5 = 7.5 → 8
+    '工序': 8,          # 5 * 1.5 = 7.5 → 8
+    '工序全名': 8,      # 5 * 1.5 = 7.5 → 8
+    '最终匹配结果': 45, # 30 * 1.5 = 45 → 45
+    '过滤条件2结果': 45, # 30 * 1.5 = 45 → 45
+    '过滤条件3结果': 45, # 30 * 1.5 = 45 → 45
+    '型号映射结果': 38, # 25 * 1.5 = 37.5 → 38
+    '最佳匹配类别': 6,  # 4 * 1.5 = 6 → 6
+    '最佳匹配来源': 8,  # 5 * 1.5 = 7.5 → 8
+    '最佳匹配相似度': 5, # 2 * 1.5 = 3 → 3
+    '最终状态': 10,      # 5 * 1.5 = 7.5 → 8
+    '过滤条件1命中数': 5, # 2 * 1.5 = 3 → 3
+}
+
+
 def get_model_category(model_dict, record, field_name):
     """
     使用 model_mapper 获取指定字段的模型类别
@@ -395,6 +417,12 @@ def main():
     print("正在生成 Excel 输出文件...")
     
     if results:
+        # Replace None values with empty strings for all records
+        for record in results:
+            for key, value in record.items():
+                if value is None:
+                    record[key] = ''
+        
         df = pd.DataFrame(results)
         
         # Generate output filename with timestamp
@@ -414,8 +442,14 @@ def main():
         
         # Define border style (solid line, weight 0.25)
         thin_border = Border(
-            bottom=Side(style='thin', color='000000')
+            top=Side(style='thin', color='000000'),
+            bottom=Side(style='thin', color='000000'),
+            left=Side(style='thin', color='000000'),
+            right=Side(style='thin', color='000000')
         )
+        
+        # Define left alignment
+        left_alignment = Alignment(horizontal='left', vertical='top', wrap_text=True)
         
         with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
             # Reorder columns to match desired order
@@ -440,28 +474,21 @@ def main():
             # Add grid lines
             worksheet.sheet_view.showGridlines = True
             
-            # Define column widths (fixed for filter columns)
-            column_widths = {
-                '过滤条件2结果': 80,
-                '过滤条件3结果': 80,
-                '最终匹配结果': 80,
-                '型号映射结果': 80,
-            }
+            # Set column widths and apply styles to all cells (including header)
+            for column_idx, col_name in enumerate(df.columns, 1):
+                column_letter = chr(64 + column_idx)  # Convert to letter (1=A, 2=B, etc.)
+                # Get column width from configuration (use 10 as default)
+                col_width = COLUMN_WIDTHS.get(col_name, 10)
+                worksheet.column_dimensions[column_letter].width = col_width
             
-            # Set column widths
-            for column in worksheet.columns:
-                column_letter = column[0].column_letter
-                if column_letter in column_widths:
-                    worksheet.column_dimensions[column_letter].width = column_widths[column_letter]
-                else:
-                    worksheet.column_dimensions[column_letter].width = 15
-                
-                # Enable text wrapping for cells that might contain newlines
-                for cell in column:
-                    cell.alignment = Alignment(wrap_text=True, vertical='top')
+            # Apply left alignment, border, and text wrapping to all cells
+            for row in worksheet.iter_rows():
+                for cell in row:
+                    cell.alignment = left_alignment
+                    cell.border = thin_border
             
-            # Apply row colors and borders based on row_color column
-            for row_idx, row_data in enumerate(results, 2):  # Start from row 2 (row 1 is header)
+            # Apply row colors to data rows (starting from row 2)
+            for row_idx, row_data in enumerate(results, 2):
                 row_color = row_data.get('row_color', '')
                 fill = None
                 if row_color == 'green':
