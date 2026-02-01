@@ -74,3 +74,9 @@ one_time_pgms/*.txt
 
 
 **/*.pyc
+
+*.xlsx
+*.xls
+
+# Excel lock files
+.~lock.*
