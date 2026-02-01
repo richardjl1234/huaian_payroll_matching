@@ -162,11 +162,63 @@ python check_quota_table.py
 
 ## 数据流程
 
-1. **数据读取**：从工资数据库读取工资记录，从定额数据库读取定额数据
-2. **生效日期计算**：根据文件名和工作表名计算适用的生效日期
-3. **类别过滤**：基于类别映射关系进行第一级过滤
-4. **定额匹配**：基于定额值进行第二级精确匹配
-5. **结果展示**：显示匹配结果供用户决策或自动处理
+```mermaid
+flowchart TD
+    A[开始] --> B[加载定额数据]
+    B --> C[获取工资记录]
+    
+    C --> D{还有工资记录?}
+    D -->|是| E[获取下一条工资记录]
+    D -->|否| Z[结束]
+    
+    E --> F[计算生效日期<br/>calculate_effected_from]
+    F --> G[第一级过滤<br/>类别1 + effected_from]
+    
+    G --> H{过滤条件1有匹配?}
+    H -->|否| I[跳过/无匹配]
+    I --> C
+    
+    H -->|是| J[第二级过滤<br/>定额值精确匹配]
+    
+    J --> K{过滤条件1+2有匹配?}
+    K -->|否| I
+    K -->|是| L{匹配数量=1?}
+    
+    L -->|否| M[抛出NODECISION异常<br/>无法自动决策]
+    M --> C
+    
+    L -->|是| N[返回匹配代码<br/>final_decision]
+    N --> O[记录匹配结果]
+    O --> C
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#e8f5e9
+    style D fill:#fce4ec
+    style E fill:#e8f5e9
+    style F fill:#fff3e0
+    style G fill:#fff3e0
+    style H fill:#ffebee
+    style I fill:#ffebee
+    style J fill:#e3f2fd
+    style K fill:#ffebee
+    style L fill:#f3e5f5
+    style M fill:#ffcdd2
+    style N fill:#c8e6c9
+    style O fill:#c8e6c9
+    style Z fill:#e1f5fe
+```
+
+### 流程说明
+
+1. **数据加载**：从定额数据库查询所有定额记录
+2. **记录获取**：从工资数据库逐条获取工资记录
+3. **生效日期计算**：根据文件名和工作表名计算适用的生效日期
+4. **第一级过滤**：基于类别映射关系，筛选符合条件的定额记录类别
+5. **第二级过滤**：在第一级过滤结果中精确匹配定额值
+6. **决策处理**：
+   - 如果只有一条匹配记录，返回代码
+   - 如果没有或有多条匹配记录，抛出异常或跳过
 
 ## 系统特点
 
