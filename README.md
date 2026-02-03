@@ -30,14 +30,24 @@
    - 以表格形式展示匹配的定额记录
    - 支持命令行参数指定文件名前缀和工作表名
 
-4. **batch_matching.py** - 批量匹配程序（非交互式模式）
-   - 非交互式批量处理工资记录
+4. **one_file_batch_matching.py** - 单文件批量匹配程序（非交互式模式）
+   - 非交互式批量处理单个月份工资记录
    - 自动跳过定额为0的记录
    - 调用 `final_decision` 函数进行自动决策
    - 提供处理进度跟踪和统计摘要
-   - 目前限制处理前100条记录（临时限制）
+   - 支持verbose参数控制日志输出
+   - 生成Excel输出文件（含边框、左对齐等格式）
+   - 5种结果分类：情况1-匹配成功、情况2-Filter2有结果但Filter3无匹配、情况3-Filter2无结果、情况4-跳过、情况5-错误
 
-5. **config.py** - 系统配置文件
+5. **overall_batch_processing.py** - 整体批量处理程序
+   - 汇总处理所有月份工资记录
+   - 从数据库自动获取所有YYYYMM月份值
+   - 生成综合HTML报告
+   - 嵌入式matplotlib图表展示处理统计
+   - 图表支持中文显示（WenQuanYi字体）
+   - 计算整体成功率（情况1/(情况1+2+3)，忽略情况4）
+
+6. **config.py** - 系统配置文件
    - 数据库路径配置
    - 类别映射关系定义
    - `calculate_effected_from(file_name, sheet_name)` - 智能计算生效日期
@@ -45,36 +55,60 @@
      - 基于类别映射选择最合适的生效日期
      - 返回最接近但不大于目标日期的生效日期
    - 路径配置和常量定义
+   - Excel列宽配置COLUMN_WIDTHS
+
+7. **model_mapper.py** - 型号类别映射器
+   - 从Excel文件读取型号与类别对应关系
+   - 提供相似度计算功能
+   - 支持多字段匹配（型号、工序、工序全名）
 
 ### 测试和诊断模块
 
-6. **test_calculate_effected_from.py** - 自动化测试程序
+8. **test_calculate_effected_from.py** - 自动化测试程序
    - 全面测试 `calculate_effected_from` 函数
    - 包含11个测试用例和边界情况测试
    - 验证不同年份、月份和工作表组合的正确性
 
-7. **interactive_test_calculate_effected_from.py** - 交互式测试程序
+9. **interactive_test_calculate_effected_from.py** - 交互式测试程序
    - 允许用户输入文件名和工作表名进行测试
    - 支持单个用例测试和批量测试模式
    - 显示可用工作表名称和生效日期
 
-8. **check_table.py** - 数据库表结构检查器
-   - 检查工资详情表的结构
-   - 显示表字段信息和示例数据
-   - 验证数据库连接和表结构
+10. **check_table.py** - 数据库表结构检查器
+    - 检查工资详情表的结构
+    - 显示表字段信息和示例数据
+    - 验证数据库连接和表结构
 
-9. **check_quota_table.py** - 定额表结构检查器
-   - 检查定额表的结构
-   - 显示表字段信息和示例数据
-   - 验证定额数据的可用性
+11. **check_quota_table.py** - 定额表结构检查器
+    - 检查定额表的结构
+    - 显示表字段信息和示例数据
+    - 验证定额数据的可用性
 
 ### 辅助文件
 
-10. **daily_log.md** - 开发日志
+12. **daily_log.md** - 开发日志
     - 记录系统开发进度和功能变更
     - 跟踪已完成工作和待办事项
 
 ## 核心功能
+
+### 五种处理结果分类
+
+系统对每条工资记录的处理结果分为5种情况：
+
+| 情况 | 条件 | 说明 |
+|------|------|------|
+| **情况1** | Filter1、Filter2、Filter3都有唯一匹配 | 匹配成功，最终结果用于工资计算 |
+| **情况2** | Filter1有结果，Filter2有结果，Filter3无匹配 | Filter2有结果但Filter3无匹配 |
+| **情况3** | Filter1有结果，Filter2无结果 | Filter2无结果 |
+| **情况4** | Filter1无结果 | 跳过该记录 |
+| **情况5** | 处理过程中发生错误 | 错误记录 |
+
+### 成功率计算
+
+成功率 = 情况1数量 / (情况1 + 情况2 + 情况3) × 100%
+- 情况4（跳过的记录）不计入分母
+- 只考虑情况1为成功匹配
 
 ### 三级过滤逻辑
 
@@ -116,7 +150,7 @@
 
 **目的**：匹配工资记录与定额记录的型号类别
 
-**逻辑** ([`batch_matching.py`](batch_matching.py:302))：
+**逻辑** ([`one_file_batch_matching.py`](one_file_batch_matching.py:302))：
 - 从工资记录的多个字段（`型号`、`工序`、`工序全名`）中选择相似度最高的类别作为最佳类别
 - 对每条过滤条件2的结果，将其 `型号` 映射到类别
 - 只保留类别与工资记录最佳类别匹配的定额记录
@@ -133,7 +167,7 @@
 
 **目的**：从过滤条件3的结果中选择最终匹配的定额记录
 
-**规则** ([`batch_matching.py`](batch_matching.py:340))：
+**规则** ([`one_file_batch_matching.py`](one_file_batch_matching.py:340))：
 
 | 情况 | 处理方式 |
 |------|----------|
@@ -154,40 +188,43 @@ flowchart TD
     D --> E[过滤条件1<br/>类别1 + effected_from]
     
     E --> F{过滤条件1有结果?}
-    F -->|否| G[跳过/无匹配]
+    F -->|否| G[跳过/无匹配 情况4]
     G --> C
     
     F -->|是| H[过滤条件2<br/>定额值精确匹配]
     
     H --> I{过滤条件1+2有结果?}
-    I -->|否| G
-    I -->|是| J[获取工资记录最佳类别<br/>从型号/工序/工序全名]
+    I -->|否| J[无结果 情况3]
+    J --> C
     
-    J --> K[过滤条件3<br/>型号类别匹配]
+    I -->|是| K[获取工资记录最佳类别<br/>从型号/工序/工序全名]
     
-    K --> L{过滤条件3结果数量}
+    K --> L[过滤条件3<br/>型号类别匹配]
     
-    L -->|1条| M[使用该记录作为最终结果]
-    L -->|多条| N[计算型号相似度<br/>选择最高相似度的记录]
-    L -->|0条| O[最终结果为空<br/>Filter3无匹配]
+    L --> M{过滤条件3结果数量}
     
-    M --> P[记录匹配结果]
-    N --> P
-    O --> P
+    M -->|1条| N[使用该记录 情况1]
+    M -->|多条| O[计算型号相似度<br/>选择最高相似度的记录 情况1]
+    M -->|0条| P[无匹配 情况2]
     
-    P --> C
+    N --> Q[记录匹配结果]
+    O --> Q
+    P --> Q
+    
+    Q --> C
     
     style A fill:#e1f5fe
     style B fill:#fff3e0
     style C fill:#e8f5e9
     style E fill:#fff3e0
     style H fill:#e3f2fd
-    style J fill:#e3f2fd
-    style K fill:#f3e5f5
-    style M fill:#c8e6c9
+    style K fill:#e3f2fd
+    style L fill:#f3e5f5
     style N fill:#c8e6c9
-    style O fill:#ffcdd2
-    style P fill:#c8e6c9
+    style O fill:#c8e6c9
+    style P fill:#ffcdd2
+    style Q fill:#c8e6c9
+    style J fill:#ffcdd2
 ```
 
 ---
@@ -266,11 +303,21 @@ python match.py 202005
 python match.py 202005 精加工
 ```
 
-### 批量处理模式
+### 单文件批量处理模式
 
 ```bash
-# 批量处理所有工资记录（目前限制前100条）
-python batch_matching.py
+# 处理指定月份的所有工资记录
+python one_file_batch_matching.py 202005
+
+# 批量处理（减少日志输出）
+python one_file_batch_matching.py 202005 False
+```
+
+### 整体批量处理模式
+
+```bash
+# 处理所有月份并生成汇总报告
+python overall_batch_processing.py
 ```
 
 ### 测试和诊断
@@ -302,21 +349,24 @@ flowchart TD
     F --> G[第一级过滤<br/>类别1 + effected_from]
     
     G --> H{过滤条件1有匹配?}
-    H -->|否| I[跳过/无匹配]
+    H -->|否| I[跳过/无匹配 情况4]
     I --> C
     
     H -->|是| J[第二级过滤<br/>定额值精确匹配]
     
     J --> K{过滤条件1+2有匹配?}
-    K -->|否| I
-    K -->|是| L{匹配数量=1?}
+    K -->|否| L[无结果 情况3]
+    L --> C
     
-    L -->|否| M[抛出NODECISION异常<br/>无法自动决策]
-    M --> C
+    K -->|是| M{匹配数量=1?}
     
-    L -->|是| N[返回匹配代码<br/>final_decision]
-    N --> O[记录匹配结果]
+    M -->|否| N[多条匹配 计算相似度 选择最高]
+    N --> O[情况1]
     O --> C
+    
+    M -->|是| P[返回匹配代码 情况1]
+    P --> Q[记录匹配结果]
+    Q --> C
     
     style A fill:#e1f5fe
     style B fill:#fff3e0
@@ -329,10 +379,12 @@ flowchart TD
     style I fill:#ffebee
     style J fill:#e3f2fd
     style K fill:#ffebee
-    style L fill:#f3e5f5
-    style M fill:#ffcdd2
+    style L fill:#ffcdd2
+    style M fill:#f3e5f5
     style N fill:#c8e6c9
     style O fill:#c8e6c9
+    style P fill:#c8e6c9
+    style Q fill:#c8e6c9
     style Z fill:#e1f5fe
 ```
 
@@ -344,30 +396,34 @@ flowchart TD
 4. **第一级过滤**：基于类别映射关系，筛选符合条件的定额记录类别
 5. **第二级过滤**：在第一级过滤结果中精确匹配定额值
 6. **决策处理**：
-   - 如果只有一条匹配记录，返回代码
-   - 如果没有或有多条匹配记录，抛出异常或跳过
+   - 如果只有一条匹配记录，返回代码（情况1）
+   - 如果多条匹配，计算相似度选择最佳（情况1）
+   - 如果没有匹配（情况2）或Filter2无结果（情况3）或跳过（情况4）
 
 ## 系统特点
 
 - **灵活性**：支持交互式和批量两种处理模式
 - **智能性**：自动计算生效日期，智能匹配定额数据
+- **可视化**：HTML报告集成matplotlib图表，中文支持
 - **可扩展性**：模块化设计，易于添加新功能
 - **可靠性**：包含完整的测试套件和错误处理机制
 - **用户友好**：提供详细的操作提示和结果展示
+- **格式规范**：Excel输出支持边框、左对齐、列宽配置
 
 ## 待办事项
 
-- [ ] 移除 `batch_matching.py` 中的100条记录限制，支持处理所有记录
-- [ ] 添加更多测试用例覆盖边界情况
 - [ ] 优化数据库查询性能
 - [ ] 添加日志记录功能
 - [ ] 支持更多文件格式和数据源
+- [ ] 添加Web界面
+- [ ] 支持多数据库源
 
 ## 技术栈
 
 - **编程语言**: Python 3
 - **数据库**: SQLite
 - **数据处理**: pandas (用于表格展示)
+- **图表生成**: matplotlib (支持中文显示)
 - **测试框架**: 自定义测试套件
 - **开发工具**: Visual Studio Code
 
@@ -375,17 +431,19 @@ flowchart TD
 
 ```
 matching/
-├── payroll_generator.py      # 工资记录生成器
-├── query_quota_table.py      # 定额数据查询器
-├── match.py                  # 交互式匹配程序
-├── batch_matching.py         # 批量匹配程序
-├── config.py                 # 配置文件
-├── test_calculate_effected_from.py          # 自动化测试
+├── payroll_generator.py              # 工资记录生成器
+├── query_quota_table.py              # 定额数据查询器
+├── match.py                          # 交互式匹配程序
+├── one_file_batch_matching.py        # 单文件批量匹配程序
+├── overall_batch_processing.py       # 整体批量处理程序
+├── model_mapper.py                   # 型号类别映射器
+├── config.py                         # 配置文件
+├── test_calculate_effected_from.py   # 自动化测试
 ├── interactive_test_calculate_effected_from.py  # 交互式测试
-├── check_table.py            # 工资表检查器
-├── check_quota_table.py      # 定额表检查器
-├── daily_log.md              # 开发日志
-└── README.md                 # 项目文档
+├── check_table.py                    # 工资表检查器
+├── check_quota_table.py              # 定额表检查器
+├── daily_log.md                      # 开发日志
+└── README.md                         # 项目文档
 ```
 
 ## 开发团队

@@ -16,29 +16,7 @@ from query_quota_table import query_quota_table
 from payroll_generator import payroll_records_gen
 from match import filter_quota_data, NODECISION
 from model_mapper import load_model_mapping, model_mapper
-from config import calculate_effected_from
-
-
-# Excel column widths configuration (multiplied by 1.5 and rounded up)
-COLUMN_WIDTHS = {
-    '工作表名': 8,      # 5 * 1.5 = 7.5 → 8
-    '职员全名': 8,      # 5 * 1.5 = 7.5 → 8
-    '定额': 8,          # 5 * 1.5 = 7.5 → 8
-    '计件数量': 6,      # 4 * 1.5 = 6 → 6
-    '系数': 3,          # 2 * 1.5 = 3 → 3
-    '型号': 8,          # 5 * 1.5 = 7.5 → 8
-    '工序': 8,          # 5 * 1.5 = 7.5 → 8
-    '工序全名': 8,      # 5 * 1.5 = 7.5 → 8
-    '最终匹配结果': 45, # 30 * 1.5 = 45 → 45
-    '过滤条件2结果': 45, # 30 * 1.5 = 45 → 45
-    '过滤条件3结果': 45, # 30 * 1.5 = 45 → 45
-    '型号映射结果': 38, # 25 * 1.5 = 37.5 → 38
-    '最佳匹配类别': 6,  # 4 * 1.5 = 6 → 6
-    '最佳匹配来源': 8,  # 5 * 1.5 = 7.5 → 8
-    '最佳匹配相似度': 5, # 2 * 1.5 = 3 → 3
-    '最终状态': 10,      # 5 * 1.5 = 7.5 → 8
-    '过滤条件1命中数': 5, # 2 * 1.5 = 3 → 3
-}
+from config import calculate_effected_from, COLUMN_WIDTHS
 
 
 def get_model_category(model_dict, record, field_name):
@@ -165,45 +143,54 @@ def format_quota_record_with_code(item):
     return f"{code} | {item.get('类别1', '')} | {item.get('类别2', '')} | {item.get('加工工序', '')} | {item.get('型号', '')} | {item.get('定额', '')}"
 
 
-def main():
+def one_file_batch_matching(yyyymm, verbose=True):
     """
-    Main function for batch matching
+    Process payroll records for a single month and return summary.
+    
+    Args:
+        yyyymm (str): The year-month string (e.g., '202005')
+        verbose (bool): If True, print detailed progress messages (default: True)
+        
+    Returns:
+        dict: Summary information with keys:
+            - processed_count: Total processed records
+            - success_count: Successfully matched records
+            - skip_count: Skipped records
+            - error_count: Error records
     """
-    print("=" * 60)
-    print("批量匹配程序 - Batch Matching Program")
-    print("=" * 60)
+    def log(msg):
+        if verbose:
+            print(msg)
     
-    # Check command line arguments
-    if len(sys.argv) < 2:
-        print("用法: python batch_matching.py <文件前缀>")
-        print("例如: python batch_matching.py 202005")
-        return
+    log("=" * 60)
+    log(f"批量匹配程序 - Batch Matching Program: {yyyymm}")
+    log("=" * 60)
     
-    file_prefix = sys.argv[1]
-    print(f"正在处理文件前缀为 '{file_prefix}' 的记录")
-    print()
+    file_prefix = yyyymm
+    log(f"正在处理文件前缀为 '{file_prefix}' 的记录")
+    log("")
     
     # Step 0: Load model mapping
-    print("正在加载型号映射数据...")
+    log("正在加载型号映射数据...")
     try:
         model_dict = load_model_mapping("定额型号类别编码_260201.xlsx", "型号")
     except FileNotFoundError:
-        print("错误: 找不到型号映射文件，定额型号类别编码_260201.xlsx")
+        log("错误: 找不到型号映射文件，定额型号类别编码_260201.xlsx")
         model_dict = {}
     except Exception as e:
-        print(f"错误: 加载型号映射失败: {e}")
+        log(f"错误: 加载型号映射失败: {e}")
         model_dict = {}
-    print(f"加载了 {len(model_dict)} 条型号映射记录")
-    print()
+    log(f"加载了 {len(model_dict)} 条型号映射记录")
+    log("")
     
     # Step 1: Load quota data
-    print("正在查询定额数据...")
+    log("正在查询定额数据...")
     quota_data = query_quota_table()
-    print(f"获取到 {len(quota_data)} 条定额记录")
-    print()
+    log(f"获取到 {len(quota_data)} 条定额记录")
+    log("")
     
     # Step 2: Create payroll records generator with file prefix
-    print(f"正在获取工资记录 (文件前缀: {file_prefix})...")
+    log(f"正在获取工资记录 (文件前缀: {file_prefix})...")
     file_name = f"{file_prefix}.xls"
     generator = payroll_records_gen(file_prefix)
     
@@ -212,9 +199,18 @@ def main():
     
     # Counter for processed records
     processed_count = 0
-    success_count = 0
-    skip_count = 0
-    error_count = 0
+    
+    # Detailed counters for summary
+    # Case 1: Filter3 has result (successful match)
+    case1_filter3_matched = 0
+    # Case 2: Filter2 has result, Filter3 has no result
+    case2_filter2_only = 0
+    # Case 3: Filter2 has no result
+    case3_filter2_none = 0
+    # Case 4: Skipped (quota = 0)
+    case4_skipped = 0
+    # Case 5: Error
+    case5_error = 0
     
     try:
         # Process all records
@@ -222,11 +218,11 @@ def main():
             payroll_record = next(generator)
             processed_count += 1
             
-            print(f"\n处理记录 #{processed_count}:")
-            print(f"  文件名: {payroll_record['文件名']}")
-            print(f"  工作表名: {payroll_record['sheet名']}")
-            print(f"  职员: {payroll_record['职员全名']}")
-            print(f"  定额: {payroll_record['定额']}")
+            log(f"\n处理记录 #{processed_count}:")
+            log(f"  文件名: {payroll_record['文件名']}")
+            log(f"  工作表名: {payroll_record['sheet名']}")
+            log(f"  职员: {payroll_record['职员全名']}")
+            log(f"  定额: {payroll_record['定额']}")
             
             # Initialize result record
             result_record = {
@@ -255,10 +251,10 @@ def main():
             
             # Skip if quota is 0
             if is_zero_quota:
-                print("  → 定额为0，跳过匹配")
+                log("  → 定额为0，跳过匹配")
                 result_record['最终状态'] = '跳过(定额为0)'
                 result_record['row_color'] = 'gray'
-                skip_count += 1
+                case4_skipped += 1
                 results.append(result_record)
                 continue
             
@@ -266,26 +262,26 @@ def main():
             file_name = payroll_record['文件名']
             
             # Step 4: Use model_mapper on multiple fields
-            print("  步骤4: 使用 model_mapper 分析记录...")
+            log("  步骤4: 使用 model_mapper 分析记录...")
             model_results = {}
             
             # 4.1 Check 型号
             model_result = get_model_category(model_dict, payroll_record, '型号')
             if model_result:
                 model_results['型号'] = model_result
-                print(f"    型号: {format_model_result(model_result)}")
+                log(f"    型号: {format_model_result(model_result)}")
             
             # 4.2 Check 工序全名
             model_result = get_model_category(model_dict, payroll_record, '工序全名')
             if model_result:
                 model_results['工序全名'] = model_result
-                print(f"    工序全名: {format_model_result(model_result)}")
+                log(f"    工序全名: {format_model_result(model_result)}")
             
             # 4.3 Check 工序
             model_result = get_model_category(model_dict, payroll_record, '工序')
             if model_result:
                 model_results['工序'] = model_result
-                print(f"    工序: {format_model_result(model_result)}")
+                log(f"    工序: {format_model_result(model_result)}")
             
             # Format all model results with \n separator
             all_model_results_str = "\n".join([f"{k}: {format_model_result(v)}" for k, v in model_results.items()])
@@ -298,7 +294,7 @@ def main():
             result_record['最佳匹配相似度'] = best_similarity
             
             if best_category:
-                print(f"  最佳匹配类别: {best_category} (来源:{source_field}, 相似度:{best_similarity:.2%})")
+                log(f"  最佳匹配类别: {best_category} (来源:{source_field}, 相似度:{best_similarity:.2%})")
             
             try:
                 # Step 3: Filter quota data (Filter 1 + Filter 2)
@@ -312,17 +308,17 @@ def main():
                 if filter2_data:
                     filter2_str_parts = [format_quota_record_with_code(item) for item in filter2_data]
                     result_record['过滤条件2结果'] = "\n".join(filter2_str_parts)
-                    print(f"  过滤结果: 条件1={filter1_count}, 条件1+2={filter2_count}")
+                    log(f"  过滤结果: 条件1={filter1_count}, 条件1+2={filter2_count}")
                     for i, part in enumerate(filter2_str_parts[:3], 1):
-                        print(f"    结果{i}: {part}")
+                        log(f"    结果{i}: {part}")
                     if len(filter2_str_parts) > 3:
-                        print(f"    ... 共 {len(filter2_str_parts)} 条")
+                        log(f"    ... 共 {len(filter2_str_parts)} 条")
                 else:
                     result_record['过滤条件2结果'] = '无'
-                    print(f"  过滤结果: 条件1={filter1_count}, 条件1+2={filter2_count}")
+                    log(f"  过滤结果: 条件1={filter1_count}, 条件1+2={filter2_count}")
                 
                 # Step 6: Filter 3 - Match model category
-                print("  步骤6: 执行 Filter 3 (模型类别匹配)...")
+                log("  步骤6: 执行 Filter 3 (模型类别匹配)...")
                 filter3_results = []
                 
                 if filter2_data and best_category:
@@ -351,70 +347,71 @@ def main():
                 if filter3_results:
                     filter3_str_parts = [format_quota_record_with_code(r['quota_item']) for r in filter3_results]
                     result_record['过滤条件3结果'] = "\n".join(filter3_str_parts)
-                    print(f"  Filter 3 命中 {len(filter3_results)} 条记录")
+                    log(f"  Filter 3 命中 {len(filter3_results)} 条记录")
                     for i, part in enumerate(filter3_str_parts[:5], 1):
-                        print(f"    结果{i}: {part}")
+                        log(f"    结果{i}: {part}")
                 else:
                     result_record['过滤条件3结果'] = '无匹配'
-                    print("  → Filter 3 无匹配记录")
+                    log("  → Filter 3 无匹配记录")
                 
                 # Final result logic
                 final_result = ''
                 if len(filter3_results) == 1:
                     # If only one record in filter 3, use it directly
                     final_result = format_quota_record_with_code(filter3_results[0]['quota_item'])
-                    print(f"  最终结果 (单条记录): {final_result}")
+                    log(f"  最终结果 (单条记录): {final_result}")
                 elif len(filter3_results) > 1:
                     # If more than 2 records in filter 3, use similarity check
-                    print(f"  Filter 3 有 {len(filter3_results)} 条记录，进行型号相似度筛选...")
+                    log(f"  Filter 3 有 {len(filter3_results)} 条记录，进行型号相似度筛选...")
                     for r in filter3_results:
                         model_sim = calculate_string_similarity(salary_model, r['quota_model'])
                         r['model_similarity'] = model_sim
-                        print(f"    型号相似度: {r['quota_model']} vs {salary_model} = {model_sim:.2%}")
+                        log(f"    型号相似度: {r['quota_model']} vs {salary_model} = {model_sim:.2%}")
                     
                     # Get the one with highest similarity
                     best_match = max(filter3_results, key=lambda x: x['model_similarity'])
                     final_result = format_quota_record_with_code(best_match['quota_item'])
-                    print(f"  最终结果 (最高相似度): {final_result}")
+                    log(f"  最终结果 (最高相似度): {final_result}")
                 # If no results in filter 3, leave final result as blank
                 
                 result_record['最终匹配结果'] = final_result
                 
                 # Set final status and row color
                 if final_result:
+                    # Case 1: Filter3 has result (successful match)
                     result_record['最终状态'] = '匹配成功'
                     result_record['row_color'] = 'green'
-                    success_count += 1
+                    case1_filter3_matched += 1
                 elif filter2_count > 0:
-                    # Filter2 has records, but filter3 and final result is empty
+                    # Case 2: Filter2 has records, but Filter3 has no result
                     result_record['最终状态'] = 'Filter3无匹配'
                     result_record['row_color'] = 'yellow'
-                    skip_count += 1
+                    case2_filter2_only += 1
                 else:
-                    # Filter2 has no records
+                    # Case 3: Filter2 has no records
                     result_record['最终状态'] = '无匹配记录'
                     result_record['row_color'] = 'pink'
-                    skip_count += 1
+                    case3_filter2_none += 1
                 
             except NODECISION as e:
-                print(f"  → 决策失败: {e}")
+                log(f"  → 决策失败: {e}")
                 result_record['最终状态'] = f'决策失败: {str(e)[:50]}'
                 result_record['row_color'] = 'pink'
-                error_count += 1
+                case5_error += 1
             except Exception as e:
-                print(f"  → 处理错误: {e}")
+                log(f"  → 处理错误: {e}")
                 result_record['最终状态'] = f'错误: {str(e)[:50]}'
                 result_record['row_color'] = 'pink'
-                error_count += 1
+                case5_error += 1
             
             results.append(result_record)
         
     except StopIteration:
-        print(f"\n所有记录已处理完毕 (共 {processed_count} 条记录)")
+        log(f"\n所有记录已处理完毕 (共 {processed_count} 条记录)")
     
     # Step 7: Output results to Excel
-    print("\n" + "=" * 60)
-    print("正在生成 Excel 输出文件...")
+    log("\n" + "=" * 60)
+    log("正在生成 Excel 输出文件...")
     
     if results:
         # Replace None values with empty strings for all records
@@ -425,9 +422,8 @@ def main():
         
         df = pd.DataFrame(results)
         
-        # Generate output filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_file = f"batch_matching_result_{file_prefix}_{timestamp}.xlsx"
+        # Generate output filename
+        output_file = f"batch_matching_result_{file_prefix}.xlsx"
         
         # Adjust column width for better display
         from openpyxl import Workbook
@@ -503,21 +499,62 @@ def main():
                 for cell in worksheet[row_idx]:
                     if fill:
                         cell.fill = fill
-                    # Apply bottom border to each cell
-                    cell.border = thin_border
         
-        print(f"结果已保存到: {output_file}")
-        print(f"共导出 {len(results)} 条记录")
+        log(f"结果已保存到: {output_file}")
+        log(f"共导出 {len(results)} 条记录")
     else:
-        print("没有记录需要导出")
+        log("没有记录需要导出")
     
-    # Print summary
+    # Return detailed summary
+    return {
+        'processed_count': processed_count,
+        'case1_filter3_matched': case1_filter3_matched,
+        'case2_filter2_only': case2_filter2_only,
+        'case3_filter2_none': case3_filter2_none,
+        'case4_skipped': case4_skipped,
+        'case5_error': case5_error,
+        # Legacy fields for backward compatibility
+        # Success rate = case1 / (case1 + case2 + case3), ignoring case4
+        'success_count': case1_filter3_matched,
+        'skip_count': case2_filter2_only + case3_filter2_none,
+        'error_count': case5_error
+    }
+
+
+def main():
+    """
+    Main function - supports both command line and programmatic calls
+    """
+    # Check command line arguments
+    if len(sys.argv) < 2:
+        print("用法: python batch_matching.py <文件前缀>")
+        print("例如: python batch_matching.py 202005")
+        return
+    
+    yyyymm = sys.argv[1]
+    
+    # Determine verbose mode from command line
+    verbose = '--verbose' in sys.argv or '-v' in sys.argv
+    
+    # Call one_file_batch_matching and get the summary
+    summary = one_file_batch_matching(yyyymm, verbose=verbose)
+    
+    # Print detailed summary
     print("\n" + "=" * 60)
     print("处理摘要:")
-    print(f"  总处理记录数: {processed_count}")
-    print(f"  成功匹配数: {success_count}")
-    print(f"  跳过数: {skip_count}")
-    print(f"  错误数: {error_count}")
+    print(f"  总处理记录数: {summary['processed_count']}")
+    print()
+    print("  详细分类:")
+    print(f"    情况1-匹配成功(Filter3有结果): {summary['case1_filter3_matched']}")
+    print(f"    情况2-Filter2有结果但Filter3无匹配: {summary['case2_filter2_only']}")
+    print(f"    情况3-Filter2无结果: {summary['case3_filter2_none']}")
+    print(f"    情况4-跳过(定额为0): {summary['case4_skipped']}")
+    print(f"    情况5-错误: {summary['case5_error']}")
+    print()
+    print("  统计汇总:")
+    print(f"  成功数(情况1): {summary['success_count']}")
+    print(f"  未成功数(情况2+情况3+情况5): {summary['skip_count'] + summary['case5_error']}")
+    print(f"  成功率(情况1/(情况1+2+3)): {summary['success_rate_all'] if 'success_rate_all' in summary else 'N/A'}")
     print("=" * 60)
 
 
