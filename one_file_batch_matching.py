@@ -173,9 +173,9 @@ def one_file_batch_matching(yyyymm, verbose=True):
     # Step 0: Load model mapping
     log("正在加载型号映射数据...")
     try:
-        model_dict = load_model_mapping("定额型号类别编码_260201.xlsx", "型号")
+        model_dict = load_model_mapping("../sqlite_2_mysql/定额型号类别编码_updated.xlsx", "型号映射")
     except FileNotFoundError:
-        log("错误: 找不到型号映射文件，定额型号类别编码_260201.xlsx")
+        log("错误: 找不到型号映射文件，../sqlite_2_mysql/定额型号类别编码_updated.xlsx")
         model_dict = {}
     except Exception as e:
         log(f"错误: 加载型号映射失败: {e}")

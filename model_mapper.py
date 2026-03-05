@@ -110,8 +110,8 @@ def model_mapper(model_dict: dict, raw_model_str: str) -> dict:
 
 def main():
     """主函数 - 演示如何使用 model_mapper"""
-    excel_file = "定额型号类别编码_260201.xlsx"
-    sheet_name = "型号"
+    excel_file = "../sqlite_2_mysql/定额型号类别编码_updated.xlsx"
+    sheet_name = "型号映射"
     
     print("=" * 60)
     print("型号映射器 - Model Mapper")

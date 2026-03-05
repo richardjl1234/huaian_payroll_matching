@@ -83,7 +83,9 @@ def calculate_effected_from(file_name, sheet_name):
 # "精加工": the sheet name in the payroll file
 # "20200401": the effected from date for a given quota sheet
 # the value is the list of the sheet name in quota file 
-
+# TODO this part need to be updated because of the cat1 remapping
+# or not need to be updated, since we only use sqlite table?
+# please double check
 category_mapping = {
     "精加工":{ 
         "19000101": ["机座","端盖", "轴转子", "加长轴转子加工"], 
