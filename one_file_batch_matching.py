@@ -423,7 +423,7 @@ def one_file_batch_matching(yyyymm, verbose=True):
         df = pd.DataFrame(results)
         
         # Generate output filename
-        output_file = f"batch_matching_result_{file_prefix}.xlsx"
+        output_file = f"result/batch_matching_result_{file_prefix}.xlsx"
         
         # Adjust column width for better display
         from openpyxl import Workbook

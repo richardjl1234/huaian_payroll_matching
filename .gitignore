@@ -80,3 +80,6 @@ one_time_pgms/*.txt
 
 # Excel lock files
 .~lock.*
+
+
+result/**

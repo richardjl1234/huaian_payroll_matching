@@ -98,7 +98,7 @@ def main():
     print(df_summary.to_string(index=False))
     
     # Step 4: Output to HTML file
-    output_file = f"overall_processing_result.html"
+    output_file = f"result/overall_processing_result.html"
     
     # Generate HTML with styling
     html_content = f"""
